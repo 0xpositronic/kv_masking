@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KV Cache Masking</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@300;400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap');
+
+:root, [data-theme="dark"] {
+  --bg: #080a0c;
+  --surface: #0e1114;
+  --surface-raised: #141820;
+  --border: #1e2430;
+  --border-hover: #2a3344;
+  --text: #c8cdd5;
+  --text-dim: #6b7280;
+  --text-faint: #3d4554;
+  --accent: #5b9fd4;
+  --accent-dim: #2a4a6a;
+  --green: #6abf8a;
+  --green-dim: #1a2e24;
+  --red: #d47b7b;
+  --red-dim: #2e1a1a;
+  --amber: #d4a65b;
+  --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', -apple-system, sans-serif;
+  --special-bg: rgba(90,165,220,0.22);
+  --special-btn-bg: rgba(90,155,210,0.08);
+  --special-btn-hover: rgba(90,155,210,0.2);
+  --normal-tok-bg: rgba(106,210,138,0.18);
+  --normal-tok-color: #7ee8a4;
+  --special-tok-color: #7ec0ee;
+  --pos-tag-color: rgba(255,255,255,0.35);
+  --btn-primary-bg: #2e2714;
+  --btn-primary-border: #5a4a20;
+  --btn-primary-hover-bg: #3a3018;
+  --btn-primary-hover-border: #7a6a30;
+  --btn-gen-bg: var(--green-dim);
+  --btn-gen-border: #1a3e2a;
+  --btn-gen-hover-bg: #1e3e28;
+  --btn-gen-hover-border: #2a5e3a;
+  --masked-bg: rgba(212, 123, 123, 0.10);
+  --masked-text: #8a6070;
+  --masked-border: #5a3040;
+  --mask-hover: brightness(1.3);
+}
+
+[data-theme="light"] {
+  --bg: #e9ecf2;
+  --surface: #f4f5f8;
+  --surface-raised: #ffffff;
+  --border: #c0c8d4;
+  --border-hover: #a0aab8;
+  --text: #2a2c26;
+  --text-dim: #586270;
+  --text-faint: #94a0ae;
+  --accent: #3e6a94;
+  --accent-dim: #b8cce0;
+  --green: #2e6e42;
+  --green-dim: #d4eadc;
+  --red: #8a3838;
+  --red-dim: #f0d6d6;
+  --amber: #7a5c10;
+  --mono: 'IBM Plex Mono', 'SF Mono', monospace;
+  --sans: 'Newsreader', Georgia, serif;
+  --special-bg: rgba(40,90,150,0.18);
+  --special-btn-bg: rgba(62,106,148,0.06);
+  --special-btn-hover: rgba(62,106,148,0.14);
+  --normal-tok-bg: rgba(30,120,50,0.15);
+  --normal-tok-color: #1a7a30;
+  --special-tok-color: #2860a0;
+  --pos-tag-color: rgba(0,0,0,0.3);
+  --btn-primary-bg: #f0e6cc;
+  --btn-primary-border: #c8b480;
+  --btn-primary-hover-bg: #e8dcc0;
+  --btn-primary-hover-border: #a89460;
+  --btn-gen-bg: var(--green-dim);
+  --btn-gen-border: #a0c8ac;
+  --btn-gen-hover-bg: #c4e0cc;
+  --btn-gen-hover-border: #80b090;
+  --masked-bg: rgba(138, 56, 56, 0.08);
+  --masked-text: #9a7080;
+  --masked-border: #b09098;
+  --mask-hover: brightness(0.85);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* ── Theme toggle ── */
+
+.theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 20;
+  transition: all 0.2s;
+  font-size: 16px;
+  line-height: 1;
+}
+.theme-toggle:hover {
+  background: var(--surface-raised);
+  color: var(--text);
+  border-color: var(--border-hover);
+  transform: scale(1.08);
+}
+
+/* ── Model select (inline) ── */
+
+/* ── Main content — centered on full viewport ── */
+
+.main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 120px 28px 24px;
+}
+
+.model-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.model-select:focus { outline: none; border-color: var(--accent-dim); }
+
+.model-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: 8px;
+}
+
+/* ── Main sections ── */
+
+.section {
+  margin-bottom: 20px;
+}
+
+.section-label {
+  font-family: var(--sans);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.section-label .mask-info {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+/* ── Special token buttons ── */
+
+.special-token-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.special-token-bar .bar-hint {
+  font-size: 9px;
+  color: var(--text-faint);
+  margin-right: 6px;
+  white-space: nowrap;
+}
+
+.special-token-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--accent-dim);
+  border-radius: 3px;
+  background: var(--special-btn-bg);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+.special-token-btn:hover {
+  background: var(--special-btn-hover);
+  border-color: var(--accent);
+}
+
+/* ── Prompt Editor (contenteditable) ── */
+
+.token-editor {
+  width: 100%;
+  min-height: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 2.2;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-x: auto;
+  outline: none;
+  cursor: text;
+  transition: border-color 0.15s;
+}
+.token-editor:focus { border-color: var(--accent-dim); }
+.token-editor:empty::before {
+  content: 'Enter prompt text...';
+  color: var(--text-faint);
+}
+
+.token-editor .tok {
+  display: inline;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 1px 1px;
+  white-space: pre-wrap;
+  position: relative;
+}
+.token-editor .tok.special {
+  background: var(--special-bg);
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  cursor: default;
+  font-size: 11px;
+  padding: 1px 3px;
+  user-select: all;
+  -webkit-user-select: all;
+}
+.token-editor .tok.normal {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* ── Buttons ── */
+
+.btn-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+button {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+button:hover {
+  background: var(--surface-raised);
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+button:disabled { opacity: 0.3; cursor: not-allowed; }
+button:active { transform: scale(0.98); }
+
+button.primary {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-border);
+  color: var(--amber);
+}
+button.primary:hover {
+  background: var(--btn-primary-hover-bg);
+  border-color: var(--btn-primary-hover-border);
+}
+
+button.generate {
+  background: var(--btn-gen-bg);
+  border-color: var(--btn-gen-border);
+  color: var(--green);
+}
+button.generate:hover {
+  background: var(--btn-gen-hover-bg);
+  border-color: var(--btn-gen-hover-border);
+}
+
+.status {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
+/* ── Masking view ── */
+
+.mask-area {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  min-height: 52px;
+  line-height: 2.3;
+  user-select: none;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.mask-area .placeholder-text {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.mask-area .tok {
+  display: inline;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  padding: 1px 2px;
+  white-space: pre-wrap;
+  cursor: pointer;
+  transition: all 0.1s;
+  position: relative;
+}
+.mask-area .tok:hover { filter: var(--mask-hover); }
+.mask-area .tok .pos-tag {
+  font-size: 7px;
+  color: var(--pos-tag-color);
+  vertical-align: super;
+  margin-right: 1px;
+}
+.mask-area .tok.special {
+  background: var(--special-bg);
+  color: var(--special-tok-color);
+  border-color: var(--accent);
+  font-weight: 500;
+}
+.mask-area .tok.normal {
+  background: var(--normal-tok-bg);
+  color: var(--normal-tok-color);
+  border-color: var(--green);
+  font-weight: 500;
+}
+.mask-area .tok.masked {
+  background: var(--masked-bg) !important;
+  color: var(--masked-text) !important;
+  border-color: var(--masked-border) !important;
+  border-style: dashed !important;
+}
+
+/* ── Mask toolbar ── */
+
+.mask-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.k-scale-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.k-scale-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 120px;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.k-scale-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.k-scale-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.k-scale-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+
+.k-scale-input {
+  width: 50px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.k-scale-input::-webkit-outer-spin-button,
+.k-scale-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.k-scale-input:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+}
+
+/* ── Results ── */
+
+.results {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.result-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.result-box h3 {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.result-box.masked-r h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 14px;
+}
+.result-box.masked-r h3 .mask-info {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.result-box.masked-r h3 .k-value {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.result-box .out {
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
+.result-box .hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.result-box.normal h3 { color: var(--green); }
+.result-box.masked-r h3 { color: var(--red); font-size: 14px; }
+.result-box.masked-r h3 .k-value { color: var(--accent); }
+
+/* ── User message ── */
+
+.user-message-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-message-box .user-label {
+  font-weight: 600;
+  color: var(--text);
+}
+.user-message-box .user-content {
+  color: var(--text);
+}
+
+/* ── Legend ── */
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-swatch {
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  border-radius: 3px;
+  font-size: 9px;
+  line-height: 20px;
+  text-align: center;
+  font-family: var(--mono);
+}
+.legend-swatch.unmasked-normal {
+  background: var(--normal-tok-bg);
+  color: var(--normal-tok-color);
+  border: 1px solid var(--green);
+}
+.legend-swatch.unmasked-special {
+  background: var(--special-bg);
+  color: var(--special-tok-color);
+  border: 1px solid var(--accent);
+}
+.legend-swatch.masked-swatch {
+  background: var(--masked-bg);
+  color: var(--masked-text);
+  border: 1px dashed var(--masked-border);
+}
+
+/* ── -inf toggle ── */
+
+.neginf-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  user-select: none;
+}
+.neginf-toggle input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--red);
+}
+.neginf-toggle.active {
+  color: var(--red);
+  font-weight: 500;
+}
+.k-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.2s;
+}
+.k-controls.disabled {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+/* ── Spinner ── */
+
+.spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.5s linear infinite;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme"></button>
+
+<!-- ── Main ── -->
+<div class="main">
+
+  <!-- Prompt Editor -->
+  <div class="section">
+    <div class="section-label">Prompt
+      <span style="display:flex;align-items:center;">
+        <span class="model-status" id="modelStatus"></span>
+        <input id="modelInput" class="model-select" style="width:280px" placeholder="HuggingFace model ID" onkeydown="if(event.key==='Enter'){switchModel(this.value)}">
+        <button class="model-select" onclick="switchModel(document.getElementById('modelInput').value)" style="cursor:pointer">Load</button>
+      </span>
+    </div>
+    <div class="special-token-bar" id="specialTokenBar"></div>
+    <div class="token-editor" id="editor" contenteditable="true" spellcheck="false"></div>
+    <div class="btn-row">
+      <button class="primary" onclick="doTokenize()">Tokenize</button>
+      <button onclick="loadDefault()">Default</button>
+    </div>
+  </div>
+
+  <!-- Masking View -->
+  <div class="section">
+    <div class="section-label">Tokens</div>
+    <div class="mask-toolbar">
+      <button onclick="maskAll()">Mask all</button>
+      <button onclick="clearMask()">Unmask all</button>
+      <div class="toolbar-sep"></div>
+      <label class="neginf-toggle" id="neginfToggle">
+        <input type="checkbox" id="neginfCheck" onchange="toggleNeginf(this.checked)">
+        <span>-inf</span>
+      </label>
+      <div class="toolbar-sep"></div>
+      <span class="k-controls" id="kControls">
+        <span class="k-scale-label">K</span>
+        <input type="range" class="k-scale-slider" id="kSlider"
+          min="-1" max="2" step="0.01" value="0"
+          oninput="syncKScale(this.value)">
+        <input type="text" class="k-scale-input" id="kNum"
+          value="0" inputmode="decimal"
+          onchange="syncKNum(this.value)"
+          onkeydown="if(event.key==='Enter'){syncKNum(this.value);this.blur();}">
+      </span>
+      <span class="status" id="genStatus" style="margin-left:auto"></span>
+      <button class="generate" id="genBtn" onclick="doGenerate()" disabled>Generate</button>
+    </div>
+    <div class="mask-area" id="maskArea">
+      <span class="placeholder-text">Tokenize a prompt first</span>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div style="margin-top: 32px;">
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch unmasked-normal">ab</span> unmasked</span>
+      <span class="legend-item"><span class="legend-swatch unmasked-special">&lt;|&gt;</span> unmasked special</span>
+      <span class="legend-item"><span class="legend-swatch masked-swatch">ab</span> masked (V=0, K scaled)</span>
+    </div>
+    <div class="user-message-box" id="userMessageBox" style="display:none;">
+      <span class="user-label">User:</span> <span class="user-content" id="userMessageOut"></span>
+    </div>
+    <div class="results" id="results">
+      <div class="result-box masked-r">
+        <h3 id="maskedLabel">Masked Output <span class="mask-info" id="maskStatus"></span><span class="k-value" id="kHint"></span></h3>
+        <div class="out" id="maskedOut"><span class="hint">Masked generation output will appear here</span></div>
+      </div>
+      <div class="result-box normal">
+        <h3>Full cache</h3>
+        <div class="out" id="normalOut"><span class="hint">Generation output will appear here</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Theme ──
+
+function getTheme() {
+  return localStorage.getItem('kv-theme') || 'dark';
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeToggle').textContent = theme === 'dark' ? '\u2600' : '\u263E';
+}
+
+function toggleTheme() {
+  const next = getTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('kv-theme', next);
+  applyTheme(next);
+}
+
+// Apply immediately before paint
+applyTheme(getTheme());
+
+let tokens = [];
+let masked = new Set();
+let rawText = '';
+let kScale = 0;
+let useAttentionMask = false;
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function vis(s) {
+  return s.replace(/\n/g, '\u21b5\n');
+}
+
+// ── Editor rendering ──
+
+function getCaretCharOffset(ed) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount || !ed.contains(sel.anchorNode)) return -1;
+  const range = sel.getRangeAt(0).cloneRange();
+  range.selectNodeContents(ed);
+  range.setEnd(sel.anchorNode, sel.anchorOffset);
+  return range.toString().length;
+}
+
+function setCaretCharOffset(ed, offset) {
+  if (offset < 0) return;
+  const walker = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
+  let pos = 0;
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const len = node.textContent.length;
+    if (pos + len >= offset) {
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.setStart(node, offset - pos);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+    pos += len;
+  }
+}
+
+function renderEditor(toks) {
+  const ed = document.getElementById('editor');
+  ed.innerHTML = '';
+  toks.forEach(t => {
+    const span = document.createElement('span');
+    span.className = 'tok ' + (t.is_special ? 'special' : 'normal');
+    span.dataset.pos = t.pos;
+    span.dataset.tid = t.id;
+    span.dataset.text = t.text;
+    span.textContent = t.text;
+    ed.appendChild(span);
+  });
+}
+
+function extractEditorText() {
+  const ed = document.getElementById('editor');
+  let text = '';
+  function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += node.textContent;
+    } else if (node.nodeName === 'BR') {
+      text += '\n';
+    } else {
+      if ((node.nodeName === 'DIV' || node.nodeName === 'P') && text.length > 0 && !text.endsWith('\n')) {
+        text += '\n';
+      }
+      node.childNodes.forEach(walk);
+    }
+  }
+  walk(ed);
+  return text;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const ed = document.getElementById('editor');
+  ed.addEventListener('input', () => {
+    ed.querySelectorAll('.tok.special').forEach(span => {
+      if (span.textContent !== span.dataset.text) {
+        span.remove();
+      }
+    });
+    ed.querySelectorAll('.tok').forEach(span => {
+      if (span.textContent === '') span.remove();
+    });
+  });
+});
+
+// ── Special token insertion ──
+
+function insertSpecialToken(text) {
+  const ed = document.getElementById('editor');
+  ed.focus();
+
+  const span = document.createElement('span');
+  span.className = 'tok special';
+  span.dataset.text = text;
+  span.textContent = text;
+
+  const sel = window.getSelection();
+  if (sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(span);
+    range.setStartAfter(span);
+    range.setEndAfter(span);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } else {
+    ed.appendChild(span);
+  }
+}
+
+function renderSpecialTokenBar(specialTokens) {
+  const bar = document.getElementById('specialTokenBar');
+  bar.innerHTML = '';
+  const hint = document.createElement('span');
+  hint.className = 'bar-hint';
+  hint.textContent = 'Click to insert special tokens';
+  bar.appendChild(hint);
+  specialTokens.forEach(text => {
+    const btn = document.createElement('button');
+    btn.className = 'special-token-btn';
+    btn.textContent = text;
+    btn.onclick = () => insertSpecialToken(text);
+    bar.appendChild(btn);
+  });
+}
+
+
+// ── K-scale ──
+
+function syncKScale(val) {
+  kScale = parseFloat(val) || 0;
+  document.getElementById('kSlider').value = Math.max(-1, Math.min(kScale, 2));
+  document.getElementById('kNum').value = kScale;
+}
+
+function syncKNum(val) {
+  const parsed = parseFloat(val);
+  if (isNaN(parsed)) return;
+  kScale = parsed;
+  document.getElementById('kSlider').value = Math.max(-1, Math.min(kScale, 2));
+}
+
+function toggleNeginf(checked) {
+  useAttentionMask = checked;
+  const toggle = document.getElementById('neginfToggle');
+  const controls = document.getElementById('kControls');
+  if (checked) {
+    toggle.classList.add('active');
+    controls.classList.add('disabled');
+  } else {
+    toggle.classList.remove('active');
+    controls.classList.remove('disabled');
+  }
+}
+
+// ── Masking view ──
+
+function renderMaskArea() {
+  const area = document.getElementById('maskArea');
+  area.innerHTML = '';
+  tokens.forEach(t => {
+    const span = document.createElement('span');
+    const isMasked = masked.has(t.pos);
+    span.className = 'tok ' + (t.is_special ? 'special' : 'normal') + (isMasked ? ' masked' : '');
+    span.onclick = () => { toggleMask(t.pos); };
+    span.innerHTML = '<span class="pos-tag">' + t.pos + '</span>' + esc(vis(t.text));
+    area.appendChild(span);
+  });
+  updateMaskStatus();
+}
+
+function toggleMask(pos) {
+  if (masked.has(pos)) masked.delete(pos);
+  else masked.add(pos);
+  renderMaskArea();
+}
+
+function maskAll() {
+  tokens.forEach(t => masked.add(t.pos));
+  renderMaskArea();
+}
+
+function clearMask() {
+  masked.clear();
+  renderMaskArea();
+}
+
+function extractUserMessage() {
+  const box = document.getElementById('userMessageBox');
+  const out = document.getElementById('userMessageOut');
+  // Rebuild full text from tokens to find user message
+  const fullText = tokens.map(t => t.text).join('');
+  const startMarker = 'user<|end_header_id|>';
+  const endMarker = '<|eot_id|>';
+  const startIdx = fullText.indexOf(startMarker);
+  if (startIdx === -1) {
+    box.style.display = 'none';
+    return;
+  }
+  const contentStart = startIdx + startMarker.length;
+  const endIdx = fullText.indexOf(endMarker, contentStart);
+  const content = endIdx === -1 ? fullText.slice(contentStart) : fullText.slice(contentStart, endIdx);
+  out.textContent = content.trim();
+  box.style.display = '';
+}
+
+function updateMaskStatus() {
+  const unmasked = tokens.length - masked.size;
+  document.getElementById('maskStatus').textContent =
+    tokens.length + ' tokens, ' + unmasked + ' unmasked';
+}
+
+// ── API calls ──
+
+async function doTokenize() {
+  const ed = document.getElementById('editor');
+  const caretOff = getCaretCharOffset(ed);
+  const text = extractEditorText();
+
+  const res = await fetch('/tokenize', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ raw_text: text })
+  });
+  const data = await res.json();
+  tokens = data.tokens;
+  rawText = data.rebuilt_text;
+  masked.clear();
+
+  renderEditor(tokens);
+  setCaretCharOffset(ed, caretOff);
+  renderMaskArea();
+  extractUserMessage();
+  document.getElementById('genBtn').disabled = false;
+}
+
+async function loadDefault() {
+  const res = await fetch('/default_prompt');
+  const data = await res.json();
+  document.getElementById('editor').textContent = data.prompt;
+  await doTokenize();
+}
+
+async function loadChatTemplate() {
+  const res = await fetch('/chat_template');
+  const data = await res.json();
+  renderSpecialTokenBar(data.special_tokens);
+}
+
+async function initModels() {
+  const res = await fetch('/models');
+  const data = await res.json();
+  document.getElementById('modelInput').value = data.current || '';
+}
+
+async function switchModel(modelId) {
+  if (!modelId) return;
+  const status = document.getElementById('modelStatus');
+  status.innerHTML = 'loading<span class="spinner"></span>';
+  document.getElementById('genBtn').disabled = true;
+  try {
+    const res = await fetch('/switch_model', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ model_id: modelId })
+    });
+    const data = await res.json();
+    if (data.error) {
+      status.textContent = data.error;
+      return;
+    }
+    document.getElementById('modelInput').value = data.model_id;
+    status.textContent = '';
+    await loadChatTemplate();
+    await loadDefault();
+  } catch(e) {
+    status.textContent = e.message;
+  }
+}
+
+async function doGenerate() {
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  document.getElementById('genStatus').innerHTML =
+    'running<span class="spinner"></span>';
+
+  try {
+    const payload = {
+      raw_text: rawText,
+      masked_positions: Array.from(masked),
+      k_scale: kScale,
+      use_attention_mask: useAttentionMask
+    };
+    const res = await fetch('/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    document.getElementById('normalOut').textContent = data.normal_output;
+    document.getElementById('maskedOut').textContent = data.masked_output;
+    const kHint = document.getElementById('kHint');
+    if (useAttentionMask) {
+      kHint.textContent = '\u00b7 attn mask (-inf)';
+    } else {
+      kHint.textContent = '\u00b7 K\u00d7' + kScale;
+    }
+    document.getElementById('genStatus').textContent = '';
+  } catch(e) {
+    document.getElementById('genStatus').textContent = e.message;
+  }
+  btn.disabled = false;
+}
+
+// ── Keyboard shortcuts ──
+
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key === 'Enter') {
+    e.preventDefault();
+    if (!document.getElementById('genBtn').disabled) doGenerate();
+  } else if (e.ctrlKey && !e.shiftKey && e.key === 'Enter') {
+    e.preventDefault();
+    doTokenize();
+  }
+});
+
+// ── Init ──
+
+window.addEventListener('load', async () => {
+  await Promise.all([initModels(), loadChatTemplate()]);
+  await loadDefault();
+});
+</script>
+</body>
+</html>
