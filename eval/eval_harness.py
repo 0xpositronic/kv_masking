@@ -7,14 +7,18 @@ Single forward pass per prompt; batched generation per n_unmasked config.
 Outputs to eval_results/n{N}/eval_generations.jsonl (crash-resumable).
 
 Usage:
-    python eval_harness.py              # full 300-prompt run
-    python eval_harness.py --limit 10   # test with first 10 prompts
+    python eval/eval_harness.py              # full 300-prompt run
+    python eval/eval_harness.py --limit 10   # test with first 10 prompts
 """
 
 import argparse
 import json
 import os
+import sys
 import time
+
+# Allow importing engine from project root
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import torch
 
@@ -27,7 +31,8 @@ MAX_NEW_TOKENS = 200
 K_SCALES = [-1.0, -0.5, -0.25, -0.05, 0, 0.05, 0.25, 0.5, 0.75, 1.0, 1.50]
 N_UNMASKED_VALUES = [4, 5, 6]
 
-OUTPUT_DIR = "llama_eval_results"
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..")
+OUTPUT_DIR = os.path.join(ROOT_DIR, "llama_eval_results")
 
 
 def gen_file(n_unmasked):

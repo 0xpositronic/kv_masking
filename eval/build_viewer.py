@@ -8,8 +8,8 @@ n_unmasked subdirectory. Produces a self-contained HTML page with:
 - Plots tab (if plots exist)
 
 Usage:
-    python build_viewer.py                         # all n_unmasked dirs under eval_results/
-    python build_viewer.py --dir eval_results/n3   # single directory
+    python eval/build_viewer.py                         # all n_unmasked dirs under eval_results/
+    python eval/build_viewer.py --dir eval_results/n3   # single directory
 """
 
 import argparse
@@ -20,7 +20,8 @@ import os
 
 K_SCALES = [-1.0, -0.5, -0.25, -0.05, 0, 0.05, 0.25, 0.5, 0.75, 1.0, 1.50]
 CONFIG_LABELS = ["baseline"] + [f"k={k}" for k in K_SCALES]
-OUTPUT_DIR = "llama_eval_results"
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..")
+OUTPUT_DIR = os.path.join(ROOT_DIR, "llama_eval_results")
 
 
 def read_jsonl(filepath):

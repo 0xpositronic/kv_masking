@@ -5,9 +5,9 @@ Generates publication-quality plots from llama_eval_results.
 Supports multi-t comparison (t=4 vs t=5 vs t=6) and uses proportional K-scale axis.
 
 Usage:
-    python plot_results.py                                  # default: llama_eval_results
-    python plot_results.py --dir llama_eval_results        # explicit
-    python plot_results.py --dir llama_eval_results/n5     # single config
+    python eval/plot_results.py                                  # default: llama_eval_results
+    python eval/plot_results.py --dir llama_eval_results        # explicit
+    python eval/plot_results.py --dir llama_eval_results/n5     # single config
 """
 
 import json
@@ -20,7 +20,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
-OUTPUT_DIR = "llama_eval_results/"
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..")
+OUTPUT_DIR = os.path.join(ROOT_DIR, "llama_eval_results/")
 K_SCALES = [-1.0, -0.5, -0.25, -0.05, 0, 0.05, 0.25, 0.5, 0.75, 1.0, 1.50]
 
 VERDICTS = ["CORRECT", "PARTIALLY_CORRECT", "COHERENT_UNRELATED", "NONSENSE"]

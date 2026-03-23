@@ -4,8 +4,8 @@ KV Cache Ablation — Analysis Phase
 Reads eval_judgments.jsonl, produces aggregate statistics and tables.
 
 Usage:
-    python analyze.py                  # print tables and save summary.json
-    python analyze.py --verbose        # also print per-prompt details
+    python eval/analyze.py                  # print tables and save summary.json
+    python eval/analyze.py --verbose        # also print per-prompt details
 """
 
 import argparse
@@ -20,7 +20,8 @@ CATEGORIES = [
     "long_context", "multi_turn", "instruction_following",
 ]
 
-OUTPUT_DIR = "llama_eval_results/n4"
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..")
+OUTPUT_DIR = os.path.join(ROOT_DIR, "llama_eval_results/n4")
 JUDGMENTS_FILE = os.path.join(OUTPUT_DIR, "eval_judgments.jsonl")
 GENERATIONS_FILE = os.path.join(OUTPUT_DIR, "eval_generations.jsonl")
 SUMMARY_FILE = os.path.join(OUTPUT_DIR, "summary.json")

@@ -8,10 +8,10 @@ Each call evaluates B prompts × (1 baseline + 4×12 masked) = B×49 outputs.
 With batch_size=10: 300 prompts → 30 API calls (vs 1200 unbatched).
 
 Usage:
-    python judge.py                      # judge all, 10 prompts per batch
-    python judge.py --batch-size 5       # 5 prompts per batch (safer)
-    python judge.py --fresh              # delete existing and re-judge
-    python judge.py --dry-run            # show first batch without calling API
+    python eval/judge.py                      # judge all, 10 prompts per batch
+    python eval/judge.py --batch-size 5       # 5 prompts per batch (safer)
+    python eval/judge.py --fresh              # delete existing and re-judge
+    python eval/judge.py --dry-run            # show first batch without calling API
 """
 
 import argparse
@@ -29,7 +29,8 @@ N_UNMASKED_VALUES = [4, 5, 6]
 CONFIG_LABELS = ["baseline"] + [f"k={k}" for k in K_SCALES]
 VERDICTS = ["CORRECT", "PARTIALLY_CORRECT", "COHERENT_UNRELATED", "NONSENSE"]
 
-OUTPUT_DIR = "llama_eval_results"
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..")
+OUTPUT_DIR = os.path.join(ROOT_DIR, "llama_eval_results")
 DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
 
 JUDGE_SYSTEM = """\
@@ -390,7 +391,7 @@ def main():
     args = parser.parse_args()
 
     # Load API key
-    env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+    env_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")
     load_dotenv(env_path)
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:

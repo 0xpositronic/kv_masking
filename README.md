@@ -56,19 +56,19 @@ Run the full evaluation pipeline (requires a CUDA GPU and a `GOOGLE_API_KEY` for
 
 ```bash
 # 1. Generate: baseline + masked outputs for 300 prompts
-python eval_harness.py
+python eval/eval_harness.py
 
 # 2. Judge: classify outputs via Gemini
-python judge.py
+python eval/judge.py
 
 # 3. Analyze: print summary tables
-python analyze.py --dir llama_eval_results/n4
+python eval/analyze.py --dir llama_eval_results/n4
 
 # 4. Plot: generate visualizations
-python plot_results.py
+python eval/plot_results.py
 
 # 5. Build HTML viewer with all results
-python build_viewer.py
+python eval/build_viewer.py
 ```
 
 The eval harness and judge are crash-resumable — they pick up where they left off.
@@ -79,12 +79,13 @@ The eval harness and judge are crash-resumable — they pick up where they left 
 ├── engine.py              # Core KV masking engine
 ├── server.py              # Web server (FastAPI)
 ├── index.html             # Interactive UI
-├── prompts.py             # 300 eval prompts
-├── eval_harness.py        # Generation sweep
-├── judge.py               # LLM judge (Gemini)
-├── analyze.py             # Summary statistics
-├── plot_results.py        # Plot generation
-├── build_viewer.py        # HTML viewer builder
+├── eval/                  # Evaluation pipeline
+│   ├── prompts.py         # 300 eval prompts
+│   ├── eval_harness.py    # Generation sweep
+│   ├── judge.py           # LLM judge (Gemini)
+│   ├── analyze.py         # Summary statistics
+│   ├── plot_results.py    # Plot generation
+│   └── build_viewer.py    # HTML viewer builder
 └── llama_eval_results/    # Evaluation outputs
     ├── n4/                # 4 unmasked tokens (assistant header only)
     ├── n5/                # 5 unmasked tokens (+EOT)
