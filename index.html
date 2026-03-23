@@ -252,8 +252,8 @@ body {
   cursor: default;
   font-size: 11px;
   padding: 1px 3px;
-  user-select: all;
-  -webkit-user-select: all;
+  user-select: text;
+  -webkit-user-select: text;
 }
 .token-editor .tok.normal {
   background: transparent;
@@ -521,15 +521,23 @@ button.generate:hover {
   padding: 10px 16px;
   margin-bottom: 12px;
   font-size: 12.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.user-message-box .user-label {
+.user-message-box .turn-line {
+  display: flex;
+  gap: 8px;
+}
+.user-message-box .turn-role {
   font-weight: 600;
-  color: var(--text);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.user-message-box .user-content {
+.user-message-box .turn-role.role-user { color: var(--green); }
+.user-message-box .turn-role.role-assistant { color: var(--accent); }
+.user-message-box .turn-role.role-system { color: var(--amber); }
+.user-message-box .turn-content {
   color: var(--text);
 }
 
@@ -682,9 +690,7 @@ button.generate:hover {
       <span class="legend-item"><span class="legend-swatch unmasked-special">&lt;|&gt;</span> unmasked special</span>
       <span class="legend-item"><span class="legend-swatch masked-swatch">ab</span> masked (V=0, K scaled)</span>
     </div>
-    <div class="user-message-box" id="userMessageBox" style="display:none;">
-      <span class="user-label">User:</span> <span class="user-content" id="userMessageOut"></span>
-    </div>
+    <div class="user-message-box" id="userMessageBox" style="display:none;"></div>
     <div class="results" id="results">
       <div class="result-box masked-r">
         <h3 id="maskedLabel">Masked Output <span class="mask-info" id="maskStatus"></span><span class="k-value" id="kHint"></span></h3>
@@ -798,19 +804,6 @@ function extractEditorText() {
   return text;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const ed = document.getElementById('editor');
-  ed.addEventListener('input', () => {
-    ed.querySelectorAll('.tok.special').forEach(span => {
-      if (span.textContent !== span.dataset.text) {
-        span.remove();
-      }
-    });
-    ed.querySelectorAll('.tok').forEach(span => {
-      if (span.textContent === '') span.remove();
-    });
-  });
-});
 
 // ── Special token insertion ──
 
@@ -916,20 +909,48 @@ function clearMask() {
 
 function extractUserMessage() {
   const box = document.getElementById('userMessageBox');
-  const out = document.getElementById('userMessageOut');
-  // Rebuild full text from tokens to find user message
   const fullText = tokens.map(t => t.text).join('');
-  const startMarker = 'user<|end_header_id|>';
-  const endMarker = '<|eot_id|>';
-  const startIdx = fullText.indexOf(startMarker);
-  if (startIdx === -1) {
+
+  // Parse all turns: find <|start_header_id|>role<|end_header_id|> ... <|eot_id|> pairs
+  const headerStart = '<|start_header_id|>';
+  const headerEnd = '<|end_header_id|>';
+  const eot = '<|eot_id|>';
+  const turns = [];
+  let searchFrom = 0;
+
+  while (true) {
+    const hs = fullText.indexOf(headerStart, searchFrom);
+    if (hs === -1) break;
+    const roleStart = hs + headerStart.length;
+    const he = fullText.indexOf(headerEnd, roleStart);
+    if (he === -1) break;
+    const role = fullText.slice(roleStart, he).trim();
+    const contentStart = he + headerEnd.length;
+    const eotIdx = fullText.indexOf(eot, contentStart);
+    const content = (eotIdx === -1 ? fullText.slice(contentStart) : fullText.slice(contentStart, eotIdx)).trim();
+    if (content) turns.push({ role, content });
+    searchFrom = eotIdx === -1 ? contentStart : eotIdx + eot.length;
+  }
+
+  if (turns.length === 0) {
     box.style.display = 'none';
     return;
   }
-  const contentStart = startIdx + startMarker.length;
-  const endIdx = fullText.indexOf(endMarker, contentStart);
-  const content = endIdx === -1 ? fullText.slice(contentStart) : fullText.slice(contentStart, endIdx);
-  out.textContent = content.trim();
+
+  box.innerHTML = '';
+  turns.forEach(t => {
+    const line = document.createElement('div');
+    line.className = 'turn-line';
+    const roleSpan = document.createElement('span');
+    roleSpan.className = 'turn-role role-' + t.role;
+    roleSpan.textContent = t.role + ':';
+    const contentSpan = document.createElement('span');
+    contentSpan.className = 'turn-content';
+    contentSpan.textContent = t.content;
+    line.appendChild(roleSpan);
+    line.appendChild(contentSpan);
+    box.appendChild(line);
+  });
   box.style.display = '';
 }
 
